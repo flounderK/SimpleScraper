@@ -8,7 +8,7 @@ import logging
 import zipfile
 import traceback
 
-l = logging.getLogger(__name__)
+l = logging.getLogger("SimpleScraper")
 l.addHandler(logging.StreamHandler())
 l.setLevel(logging.WARNING)
 
