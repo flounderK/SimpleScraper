@@ -6,4 +6,4 @@ if [ -e "$SCRIPT_DIR/requirements.txt" ];then
 	pip install -r "$SCRIPT_DIR/requirements.txt"
 fi
 
-install simplescraper.py "$HOME/.local/bin"
+install "$SCRIPT_DIR/simplescraper.py" "$HOME/.local/bin"
