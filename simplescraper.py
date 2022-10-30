@@ -33,11 +33,34 @@ def get_retry(*args, session=None, max_retries=3, **kwargs):
     return r
 
 
+def get_srcset_urls_from_tags(tags):
+    """Get the srcset urls from a given iterable of Beautifulsoup tags"""
+    sources_srcsets_raw = [source['srcset'] for source in tags if source.has_attr('srcset') is True]
+    sources_srcsets = [[i.split(" ")[0] for i in raw_srcset.split(", ")] for raw_srcset in sources_srcsets_raw]
+    sources_srcsets = sum(sources_srcsets, [])
+    return sources_srcsets
+
+
 def get_img_links(soup, response):
     """Returns an actual link to images and the original relative link from the page"""
     imgs = soup.find_all('img')
     img_srcs = [img['src'] for img in imgs if img.has_attr('src') is True]
-    links = [(urljoin(response.url, src), src) if not src.startswith('http') else (src, src) for src in img_srcs]
+
+    img_srcsets = get_srcset_urls_from_tags(imgs)
+    all_src_links = img_srcs + img_srcsets
+    links = [(urljoin(response.url, src), src) if not src.startswith('http') else (src, src) for src in all_src_links]
+    l.debug('%d image links found', len(links))
+    return list(set(links))
+
+
+def get_source_links(soup, response):
+    """Returns an actual link to source tags and the original relative link from the page"""
+    sources = soup.find_all('source')
+    sources_srcs = [source['src'] for source in sources if source.has_attr('src') is True]
+    # also get srcsets
+    sources_srcsets = get_srcset_urls_from_tags(sources)
+    all_src_links = sources_srcs + sources_srcsets
+    links = [(urljoin(response.url, src), src) if not src.startswith('http') else (src, src) for src in all_src_links]
     l.debug('%d image links found', len(links))
     return list(set(links))
 
@@ -112,11 +135,12 @@ def copy_page(url, destination_dir, args):
 
     l.info('Beginning to download additional resources')
     soup = BeautifulSoup(r.content, 'html.parser')
-
     img_links = get_img_links(soup, r)
     stylesheet_links = get_stylesheet_links(soup, r)
+    source_links = get_source_links(soup, r)
     js_links = get_js_links(soup, r) if args.ignore_js is False else []
-    all_additional_links = img_links + stylesheet_links + js_links
+
+    all_additional_links = img_links + stylesheet_links + js_links + source_links
     if args.ignore is not None:
         try:
             ignore_regex = re.compile(args.ignore)
@@ -125,7 +149,6 @@ def copy_page(url, destination_dir, args):
                                     if re.search(ignore_regex, rel_link) is None]
         except:
             l.warning('regex failed to compile, nothing will be ignored')
-
 
     updated_page = r.content
     created_files_relative_path = []
@@ -178,6 +201,10 @@ if __name__ == '__main__':
                         help='Automatically create a zip file containing all of the files from the site')
     parser.add_argument('-i', '--ignore',
                         help='Regex for filenames to ignore')
+    parser.add_argument("-iss", "--ignore-full-sourcesets", default=False,
+                        action="store_true",
+                        help="Don't fetch all versions of image/audio sources. "
+                             "Stick with the default sizes. Not yet implemented")
     parser.add_argument('--debug', action='store_true', default=False,
                         help='Enable debug functionality, not fully implemented')
     parser.add_argument('urls', nargs=argparse.REMAINDER, default=[],
